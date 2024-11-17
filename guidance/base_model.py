@@ -113,13 +113,16 @@ class BaseModel(metaclass=ABCMeta):
             xts, eps: [B,*]
             timestep: [B]
             x_t = alpha_t * x0 + sigma_t * eps
+            assume that alphas is sqrted. checkout wide_image_model.py/WideImageModel/__call__
         Output:
             pred_x0s: [B,*]
         """
         
-        # TODO: Implement compute_tweedie
-        raise NotImplementedError("compute_tweedie is not implemented yet.")
-
+        pred_x0s = (xts - ((1- alphas[timestep] ** 2) ** 0.5) * eps) / (alphas[timestep])
+        
+        # TODO: Task 0, Implement compute_tweedie
+        # raise NotImplementedError("compute_tweedie is not implemented yet.")
+        return pred_x0s
         
     def compute_prev_state(
         self, xts, pred_x0s, timestep, **kwargs,
@@ -127,12 +130,29 @@ class BaseModel(metaclass=ABCMeta):
         """
         Input:
             xts: [N,C,H,W]
+        ... how to compute alphas?
+        
         Output:
             pred_prev_sample: [N,C,H,W]
         """
         
-        # TODO: Implement compute_prev_state
-        raise NotImplementedError("compute_prev_state is not implemented yet.")
+        alpha_cum_prod = None
+        if self.config.model == "sd":
+            alpha_cum_prod = self.model.scheduler.alphas_cumprod
+        elif self.config.model == "deepfloyd":
+            alpha_cum_prod = self.stage_1.scheduler.alphas_cumprod
+        else:
+            raise NotImplementedError(f"Invalid model: {self.config.model}")
+        
+        alpha_t = alpha_cum_prod[timestep]
+        prev_time_step = torch.where(timestep - 1 <= 0, torch.tensor(0), timestep - 1)
+        alpha_prev_t = alpha_cum_prod[prev_time_step]
+        
+        x_prev_t = (alpha_prev_t ** 0.5) * pred_x0s +  (((1 - alpha_prev_t)/(1 - alpha_t)) ** 0.5) * (xts - (alpha_t ** 0.5) * pred_x0s)
+        
+        # TODO: Task 0, Implement compute_prev_state
+        # raise NotImplementedError("compute_prev_state is not implemented yet.")
+        return x_prev_t        
         
     def one_step_process(
         self, input_params, timestep, alphas, sigmas, **kwargs
@@ -152,8 +172,8 @@ class BaseModel(metaclass=ABCMeta):
         )
         
         # Synchronization using SyncTweedies 
-        z0s = self.inverse_mapping(x0s, var_type="tweedie", **kwargs) # Comment out to skip synchronization
-        x0s = self.forward_mapping(z0s, bg=x0s, **kwargs) # Comment out to skip synchronization
+        # z0s = self.inverse_mapping(x0s, var_type="tweedie", **kwargs) # Comment out to skip synchronization
+        # x0s = self.forward_mapping(z0s, bg=x0s, **kwargs) # Comment out to skip synchronization
         
         x_t_1 = self.compute_prev_state(xts, x0s, timestep, **kwargs)
 
