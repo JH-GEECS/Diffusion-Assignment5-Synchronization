@@ -87,7 +87,12 @@ class WideImageModel(BaseModel):
         """
 
         # TODO: Implement forward_mapping
-        raise NotImplementedError("forward_mapping is not implemented yet.")
+        
+        c2i_list = []
+        for h_start, h_end, w_start, w_end in self.mapper:
+            c2i_list.append(z_t[:, :, h_start:h_end, w_start:w_end])
+        
+        xts = torch.cat(c2i_list, dim=0)
 
         return xts
         
@@ -102,7 +107,17 @@ class WideImageModel(BaseModel):
         """
 
         # TODO: Implement inverse_mapping
-        raise NotImplementedError("inverse_mapping is not implemented yet.")
+        # raise NotImplementedError("inverse_mapping is not implemented yet.")
+        # following xs_to_pil_img
+        
+        self.count.zero_()
+        self.value.zero_()
+        for i, (h_start, h_end, w_start, w_end) in enumerate(self.mapper):
+            self.value[:, :, h_start:h_end, w_start:w_end] += x_ts[i:i+1, ...]
+            self.count[:, :, h_start:h_end, w_start:w_end] += 1
+        
+        z_t = torch.where(self.count > 0, self.value / self.count, self.value)
+        return z_t
 
 
     def init_prompt_embeddings(

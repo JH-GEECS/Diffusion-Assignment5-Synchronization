@@ -118,6 +118,16 @@ class BaseModel(metaclass=ABCMeta):
             pred_x0s: [B,*]
         """
         
+        # import ipdb; ipdb.set_trace()
+        # print("xts: ", xts.shape) [2,3,64,64]
+        # print("eps: ", eps.shape) [2,6,64,64]
+        # print("timestep: ", timestep.shape)
+        # print("alphas: ", alphas.shape)
+        
+        if self.config.model == "deepfloyd":
+            eps, _ = torch.split(eps, xts.shape[-3], dim=-3)
+        
+        
         pred_x0s = (xts - ((1- alphas[timestep] ** 2) ** 0.5) * eps) / (alphas[timestep])
         
         # TODO: Task 0, Implement compute_tweedie
@@ -136,19 +146,21 @@ class BaseModel(metaclass=ABCMeta):
             pred_prev_sample: [N,C,H,W]
         """
         
-        alpha_cum_prod = None
         if self.config.model == "sd":
-            alpha_cum_prod = self.model.scheduler.alphas_cumprod
+            scheduler: DDIMScheduler = self.model.scheduler
         elif self.config.model == "deepfloyd":
-            alpha_cum_prod = self.stage_1.scheduler.alphas_cumprod
+            scheduler: DDIMScheduler = self.stage_1.scheduler
         else:
             raise NotImplementedError(f"Invalid model: {self.config.model}")
         
-        alpha_t = alpha_cum_prod[timestep]
-        prev_time_step = torch.where(timestep - 1 <= 0, torch.tensor(0), timestep - 1)
-        alpha_prev_t = alpha_cum_prod[prev_time_step]
+        alpha_t = scheduler.alphas_cumprod[timestep]
+        interval = scheduler.config.num_train_timesteps // scheduler.num_inference_steps
+        prev_time_step = torch.where(timestep - interval <= 0, torch.tensor(0), timestep - interval)
+        alpha_prev_t = scheduler.alphas_cumprod[prev_time_step]
         
         x_prev_t = (alpha_prev_t ** 0.5) * pred_x0s +  (((1 - alpha_prev_t)/(1 - alpha_t)) ** 0.5) * (xts - (alpha_t ** 0.5) * pred_x0s)
+        
+        # x_prev_t = (((1 - alpha_prev_t)/(1 - alpha_t)) ** 0.5) * xts + (alpha_prev_t ** 0.5 - ((alpha_t) / (1 - alpha_t)) ** 0.5) * pred_x0s
         
         # TODO: Task 0, Implement compute_prev_state
         # raise NotImplementedError("compute_prev_state is not implemented yet.")
@@ -172,8 +184,8 @@ class BaseModel(metaclass=ABCMeta):
         )
         
         # Synchronization using SyncTweedies 
-        # z0s = self.inverse_mapping(x0s, var_type="tweedie", **kwargs) # Comment out to skip synchronization
-        # x0s = self.forward_mapping(z0s, bg=x0s, **kwargs) # Comment out to skip synchronization
+        z0s = self.inverse_mapping(x0s, var_type="tweedie", **kwargs) # Comment out to skip synchronization
+        x0s = self.forward_mapping(z0s, bg=x0s, **kwargs) # Comment out to skip synchronization
         
         x_t_1 = self.compute_prev_state(xts, x0s, timestep, **kwargs)
 

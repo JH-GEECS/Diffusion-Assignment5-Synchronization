@@ -12,9 +12,13 @@ class Rotate90CWView(BaseView):
         pass
 
     def view(self, im, background=None, **kwargs):
+        """
+        https://pytorch.org/vision/main/generated/torchvision.transforms.functional.rotate.html
+        in counter-clockwise direction
+        """
         # TODO: Implement forward_mapping
-        raise NotImplementedError("forward_mapping is not implemented yet.")
+        return TF.rotate(im, -90, interpolation=InterpolationMode.NEAREST)
 
     def inverse_view(self, noise, background=None, **kwargs):
         # TODO: Implement inverse_mapping
-        raise NotImplementedError("inverse_mapping is not implemented yet.")
+        return TF.rotate(noise, 90, interpolation=InterpolationMode.NEAREST)
