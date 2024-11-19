@@ -8,9 +8,16 @@ from diffusers import StableDiffusionPipeline, DDIMScheduler, DiffusionPipeline
 
 from diffusion.stable_diffusion import StableDiffusion
 
-
+import random
 def get_current_time():
     now = datetime.now().strftime("%m-%d-%H%M%S")
+    
+    # to handle parallel io
+    # 나중에 꼭 지우기    
+    random_number = random.randint(0, 9999)
+    random_number_str = f"{random_number:04d}"
+    now = f"{now}_{random_number_str}"
+    
     return now
 
     
@@ -179,15 +186,21 @@ class BaseModel(metaclass=ABCMeta):
         xts = input_params["xts"]
 
         eps_preds = self.compute_noise_preds(xts, timestep, **kwargs)
+        
+        # sync on \epsilon_{\theta}, case 1 in sync tweedies
+        
         x0s = self.compute_tweedie(
             xts, eps_preds, timestep, alphas, sigmas, **kwargs
         )
         
         # Synchronization using SyncTweedies 
+        # sync on x_0, case 2 in sync tweedies
         z0s = self.inverse_mapping(x0s, var_type="tweedie", **kwargs) # Comment out to skip synchronization
         x0s = self.forward_mapping(z0s, bg=x0s, **kwargs) # Comment out to skip synchronization
         
         x_t_1 = self.compute_prev_state(xts, x0s, timestep, **kwargs)
+        
+        # sync on x_{t-1}, case 3 in sync tweedies
 
         out_params = {
             "x0s": x0s,

@@ -16,14 +16,14 @@ def get_circle_mask(img_size: int, r: int):
     mask = distance_from_center <= r
 
     mask = torch.tensor(mask, dtype=torch.float32)
-    return mask.unsqueeze(0).unsqueeze(0)  # [:,:, img_size, img_size]
+    return mask.unsqueeze(0)
 
 
 def inner_rotate_func_with_mask(im: torch.Tensor, mask: torch.Tensor, angle, interpolate=False):
     # TODO: Implement inner_rotate_func_with_mask
     
     original_img = im.clone()
-    rot_img = TF.rotate(im, -angle, resample=InterpolationMode.BILINEAR)  # clockwise-manner
+    rot_img = TF.rotate(im, -angle, interpolation=InterpolationMode.BILINEAR)  # clockwise-manner
     interpolated_img = rot_img * mask + original_img * (1 - mask)
     return interpolated_img
     
